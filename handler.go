@@ -81,9 +81,15 @@ func (h *GODNSHandler) do(Net string, w dns.ResponseWriter, req *dns.Msg) {
 		if ip, ok := h.hosts.Get(Q.qname); ok {
 			m := new(dns.Msg)
 			m.SetReply(req)
-			rr_header := dns.RR_Header{Name: q.Name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: settings.Hosts.TTL}
-			a := &dns.A{rr_header, net.ParseIP(ip)}
-			m.Answer = append(m.Answer, a)
+			if q.Qtype == dns.TypeA {
+				rr_header := dns.RR_Header{Name: q.Name, Rrtype: q.Qtype, Class: dns.ClassINET, Ttl: settings.Hosts.TTL}
+				a := &dns.A{rr_header, net.ParseIP(ip)}
+				m.Answer = append(m.Answer, a)
+			} else {
+				rr_header := dns.RR_Header{Name: q.Name, Rrtype: q.Qtype, Class: dns.ClassINET, Ttl: settings.Hosts.TTL}
+				ptr := &dns.PTR{rr_header, dns.Fqdn(ip)}
+				m.Answer = append(m.Answer, ptr)
+			}
 			w.WriteMsg(m)
 			Debug("%s found in hosts", Q.qname)
 			return
@@ -139,7 +145,7 @@ func (h *GODNSHandler) DoUDP(w dns.ResponseWriter, req *dns.Msg) {
 }
 
 func (h *GODNSHandler) isIPQuery(q dns.Question) bool {
-	return q.Qtype == dns.TypeA && q.Qclass == dns.ClassINET
+	return (q.Qtype == dns.TypeA || q.Qtype == dns.TypePTR) && q.Qclass == dns.ClassINET
 }
 
 func UnFqdn(s string) string {
